@@ -169,7 +169,7 @@ jobs:
     runs-on: windows-latest
 
     environment:
-      name: DEV
+      name: dev
 
     steps:
 
@@ -202,7 +202,7 @@ jobs:
     runs-on: ubuntu-latest
 
     environment:
-      name: DEV
+      name: dev
 
     steps:
 
