@@ -172,8 +172,13 @@ jobs:
 
           echo "path=$DACPAC" >> "$GITHUB_OUTPUT"
 
-          echo "Deploying:"
-          echo "$DACPAC"
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.303'
+
+      - name: Install SqlPackage
+        run: dotnet tool install -g microsoft.sqlpackage
 
       - name: Deploy Identity database to PROD
         uses: azure/sql-action@v2.3
