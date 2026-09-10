@@ -1,0 +1,199 @@
+@IdentityApi_HostAddress = http://localhost:5248
+
+### Health Check
+
+GET {{IdentityApi_HostAddress}}/health/db
+Accept: application/json
+
+###
+
+### Register User
+
+POST {{IdentityApi_HostAddress}}/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "testuser@texasmediadart.com",
+  "password": "Password123",
+  "confirmPassword": "Password123"
+}
+
+### Login User - Valid Password
+
+POST {{IdentityApi_HostAddress}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "testuser@texasmediadart.com",
+  "password": "Password123"
+}
+
+### Login - Invalid Password
+
+POST {{IdentityApi_HostAddress}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "testuser@texasmediadart.com",
+  "password": "WrongPassword123"
+}
+
+### Login and capture token
+
+# @name login
+POST {{IdentityApi_HostAddress}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "testuser@texasmediadart.com",
+  "password": "Password123"
+}
+
+###
+
+### Get Current User
+
+GET {{IdentityApi_HostAddress}}/api/auth/me
+Authorization: Bearer {{login.response.body.accessToken}}
+Accept: application/json
+
+### Get Current User - No Token
+
+GET {{IdentityApi_HostAddress}}/api/auth/me
+Accept: application/json
+
+### Login and capture tokens
+
+# @name login
+POST {{IdentityApi_HostAddress}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "testuser@texasmediadart.com",
+  "password": "Password123"
+}
+
+###
+
+### Refresh using login refresh token
+
+# @name refresh1
+POST {{IdentityApi_HostAddress}}/api/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{login.response.body.refreshToken}}"
+}
+
+###
+
+### Try old refresh token again - should fail
+
+POST {{IdentityApi_HostAddress}}/api/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{login.response.body.refreshToken}}"
+}
+
+###
+
+### Refresh again using the rotated token
+
+# @name refresh2
+POST {{IdentityApi_HostAddress}}/api/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refresh1.response.body.refreshToken}}"
+}
+
+### Login for Logout Test
+
+# @name logoutLogin
+POST {{IdentityApi_HostAddress}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "testuser@texasmediadart.com",
+  "password": "Password123"
+}
+
+###
+
+### Logout
+
+POST {{IdentityApi_HostAddress}}/api/auth/logout
+Content-Type: application/json
+
+{
+  "refreshToken": "{{logoutLogin.response.body.refreshToken}}"
+}
+
+###
+
+### Try Refresh After Logout - should fail
+
+POST {{IdentityApi_HostAddress}}/api/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{logoutLogin.response.body.refreshToken}}"
+}
+
+### Login -> Token A
+
+# @name loginA
+POST {{IdentityApi_HostAddress}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "testuser@texasmediadart.com",
+  "password": "Password123"
+}
+
+###
+
+### Refresh A -> Token B
+
+# @name refreshB
+POST {{IdentityApi_HostAddress}}/api/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{loginA.response.body.refreshToken}}"
+}
+
+###
+
+### Refresh B -> Token C
+
+# @name refreshC
+POST {{IdentityApi_HostAddress}}/api/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refreshB.response.body.refreshToken}}"
+}
+
+###
+
+### Reuse Token A -> should detect reuse and revoke family
+
+POST {{IdentityApi_HostAddress}}/api/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{loginA.response.body.refreshToken}}"
+}
+
+###
+
+### Try Token C after reuse detection -> should now fail
+
+POST {{IdentityApi_HostAddress}}/api/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refreshC.response.body.refreshToken}}"
+}

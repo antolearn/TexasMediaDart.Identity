@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/database/">
+    <Project Path="database/TexasMediaDart.Identity.Database/TexasMediaDart.Identity.Database.sqlproj" Type="42ea0dbd-9cf1-443e-919e-be9c484e4577" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/TexasMediaDart.Identity.Api/TexasMediaDart.Identity.Api.csproj" />
+    <Project Path="src/TexasMediaDart.Identity.Application/TexasMediaDart.Identity.Application.csproj" />
+    <Project Path="src/TexasMediaDart.Identity.Domain/TexasMediaDart.Identity.Domain.csproj" />
+    <Project Path="src/TexasMediaDart.Identity.Infrastructure/TexasMediaDart.Identity.Infrastructure.csproj" />
+  </Folder>
+</Solution>
