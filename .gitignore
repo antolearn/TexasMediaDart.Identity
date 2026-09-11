@@ -45,3 +45,7 @@ database/**/obj/
 # Temporary files
 *.tmp
 *.temp
+
+# helper scripts
+src/Test/generateJWTKey.ps1
+/set-user-secrets.ps1
