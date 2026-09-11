@@ -48,3 +48,4 @@ database/**/obj/
 
 # helper scripts
 src/Test/generateJWTKey.ps1
+/set-user-secrets.ps1
