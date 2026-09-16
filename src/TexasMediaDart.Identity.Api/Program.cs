@@ -4,6 +4,7 @@ using Microsoft.IdentityModel.Tokens;
 using TexasMediaDart.Identity.Application;
 using TexasMediaDart.Identity.Infrastructure;
 using TexasMediaDart.Identity.Api.BackgroundServices;
+using TexasMediaDart.Identity.Api.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -19,6 +20,7 @@ var connectionString =
     builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException(
         "Connection string 'DefaultConnection' is not configured.");
+
 var allowedOrigins =
     builder.Configuration
         .GetSection("Cors:AllowedOrigins")
@@ -123,6 +125,5 @@ app.UseCors("Frontend");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
-app.MapHealthChecks("/health/db");
-
+app.MapHealthEndpoints(connectionString);
 app.Run();
