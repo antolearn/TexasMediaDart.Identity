@@ -1,0 +1,44 @@
+name: Identity Database CI
+
+on:
+  pull_request:
+    branches: [main]
+
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_VERSION: '10.0.x'
+  BUILD_CONFIGURATION: 'Release'
+  DATABASE_PROJECT: 'database/TexasMediaDart.Identity.Database/TexasMediaDart.Identity.Database.sqlproj'
+
+jobs:
+  build-and-validate:
+    name: Build and Validate Identity Database
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Display .NET information
+        run: dotnet --info
+
+      - name: Restore database project
+        run: dotnet restore ${{ env.DATABASE_PROJECT }}
+
+      - name: Build database project
+        run: >
+          dotnet build
+          ${{ env.DATABASE_PROJECT }}
+          --configuration ${{ env.BUILD_CONFIGURATION }}
+          --no-restore
+          /p:DSP=Microsoft.Data.Tools.Schema.Sql.SqlAzureV12DatabaseSchemaProvider

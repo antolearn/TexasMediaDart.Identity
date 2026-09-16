@@ -1,0 +1,176 @@
+name: Identity API Deploy - PROD
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_version:
+        description: 'Identity API version tested in DEV and approved for PROD'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+
+env:
+  AZURE_WEBAPP_NAME: 'texasmediadart-identity-api-prod'
+
+jobs:
+  prepare:
+    name: Prepare Identity API Artifact for PROD
+    runs-on: ubuntu-latest
+
+    environment:
+      name: prod
+
+    outputs:
+      api_zip_path: ${{ steps.locate.outputs.api_zip_path }}
+
+    steps:
+      - name: Validate API version
+        shell: bash
+        run: |
+          VERSION="${{ inputs.api_version }}"
+
+          if ! [[ "$VERSION" =~ ^[0-9]{4}\.[0-9]{2}\.[0-9]{2}\.[0-9]{4}$ ]]; then
+            echo "ERROR: Invalid API version: $VERSION"
+            echo "Expected format: yyyy.MM.dd.####"
+            exit 1
+          fi
+
+          echo "Promoting Identity API version: $VERSION"
+
+      - name: Find DEV artifact
+        id: find-artifact
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ARTIFACT_NAME="TexasMediaDart.Identity.Api-${{ inputs.api_version }}"
+
+          echo "Looking for artifact:"
+          echo "$ARTIFACT_NAME"
+
+          ARTIFACT_ID=$(gh api \
+            "repos/${{ github.repository }}/actions/artifacts?name=${ARTIFACT_NAME}" \
+            --jq '.artifacts | map(select(.expired == false)) | sort_by(.created_at) | reverse | .[0].id')
+
+          if [ -z "$ARTIFACT_ID" ] || [ "$ARTIFACT_ID" = "null" ]; then
+            echo "ERROR: Artifact not found or expired:"
+            echo "$ARTIFACT_NAME"
+            exit 1
+          fi
+
+          echo "artifact_id=$ARTIFACT_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Download exact DEV artifact
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p promoted-artifact
+
+          gh api \
+            "repos/${{ github.repository }}/actions/artifacts/${{ steps.find-artifact.outputs.artifact_id }}/zip" \
+            > artifact.zip
+
+          unzip artifact.zip -d promoted-artifact
+
+      - name: Locate and verify API package
+        id: locate
+        shell: bash
+        run: |
+          EXPECTED_NAME="TexasMediaDart.Identity.Api-${{ inputs.api_version }}.zip"
+
+          API_ZIP=$(find promoted-artifact \
+            -type f \
+            -name "$EXPECTED_NAME" \
+            | head -n 1)
+
+          if [ -z "$API_ZIP" ]; then
+            echo "ERROR: Expected Identity API package was not found:"
+            echo "$EXPECTED_NAME"
+            exit 1
+          fi
+
+          echo "Identity API package:"
+          echo "$API_ZIP"
+
+          echo "api_zip_path=$API_ZIP" >> "$GITHUB_OUTPUT"
+
+          echo "## Identity API PROD Promotion" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Version:** ${{ inputs.api_version }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Artifact:** $EXPECTED_NAME" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload validated promotion artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: identity-api-prod-promotion-${{ inputs.api_version }}
+          path: ${{ steps.locate.outputs.api_zip_path }}
+          if-no-files-found: error
+          retention-days: 30
+
+  deploy-api-prod:
+    name: Deploy Identity API to PROD
+    needs: prepare
+    runs-on: ubuntu-latest
+
+    environment:
+      name: prod
+
+    steps:
+      - name: Download validated promotion artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: identity-api-prod-promotion-${{ inputs.api_version }}
+          path: promoted-artifact
+
+      - name: Verify API package
+        id: api
+        shell: bash
+        run: |
+          EXPECTED_NAME="TexasMediaDart.Identity.Api-${{ inputs.api_version }}.zip"
+
+          API_ZIP=$(find promoted-artifact \
+            -type f \
+            -name "$EXPECTED_NAME" \
+            | head -n 1)
+
+          if [ -z "$API_ZIP" ]; then
+            echo "ERROR: Identity API package was not found."
+            exit 1
+          fi
+
+          echo "path=$API_ZIP" >> "$GITHUB_OUTPUT"
+
+          echo "Deploying Identity API:"
+          echo "$API_ZIP"
+
+      - name: Login to Azure using OIDC
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy Identity API to PROD
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          package: ${{ steps.api.outputs.path }}
+
+      - name: Azure logout
+        if: always()
+        run: az logout
+
+      - name: PROD deployment summary
+        shell: bash
+        run: |
+          echo "## Identity API PROD Deployment Successful" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Version:** ${{ inputs.api_version }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**API:** Successfully deployed" >> "$GITHUB_STEP_SUMMARY"
