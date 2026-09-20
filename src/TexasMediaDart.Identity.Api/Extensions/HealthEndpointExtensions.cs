@@ -12,6 +12,15 @@ public static class HealthEndpointExtensions
     {
         var databaseName =
             new SqlConnectionStringBuilder(connectionString).InitialCatalog;
+        app.MapGet("/health/api", () =>
+            {
+                return Results.Ok(new
+                {
+                    status = "Healthy",
+                    service = "TexasMediaDart.Identity.Api",
+                    timestampUtc = DateTime.UtcNow
+                });
+            });
 
         app.MapHealthChecks(
             "/health/db",
