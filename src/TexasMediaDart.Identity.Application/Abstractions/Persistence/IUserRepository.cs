@@ -12,8 +12,13 @@ public interface IUserRepository
         string email,
         string passwordHash,
         CancellationToken cancellationToken = default);
+
     Task<User?> GetByIdAsync(
         Guid userId,
         CancellationToken cancellationToken = default);
-    
+
+    Task<IReadOnlyList<User>> GetByIdsAsync(
+        IReadOnlyCollection<Guid> userIds,
+        CancellationToken cancellationToken = default);
+
 }
