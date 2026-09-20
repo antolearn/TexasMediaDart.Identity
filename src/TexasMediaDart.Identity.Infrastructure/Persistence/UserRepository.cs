@@ -79,4 +79,41 @@ public sealed class UserRepository : IUserRepository
 
         return user;
     }
+    public async Task<IReadOnlyList<User>> GetByIdsAsync(
+    IReadOnlyCollection<Guid> userIds,
+    CancellationToken cancellationToken = default)
+    {
+        if (userIds.Count == 0)
+        {
+            return Array.Empty<User>();
+        }
+
+        var table = new DataTable();
+        table.Columns.Add("Id", typeof(Guid));
+
+        foreach (var userId in userIds.Distinct())
+        {
+            table.Rows.Add(userId);
+        }
+
+        var parameters = new DynamicParameters();
+
+        parameters.Add(
+            "@UserIds",
+            table.AsTableValuedParameter("dbo.GuidList"));
+
+        await using var connection =
+            new SqlConnection(_connectionString);
+
+        var command = new CommandDefinition(
+            commandText: "dbo.sp_Users_GetByIds",
+            parameters: parameters,
+            commandType: CommandType.StoredProcedure,
+            cancellationToken: cancellationToken);
+
+        var users =
+            await connection.QueryAsync<User>(command);
+
+        return users.AsList();
+    }
 }
