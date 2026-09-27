@@ -116,4 +116,48 @@ public sealed class UserRepository : IUserRepository
 
         return users.AsList();
     }
+
+    public async Task<IReadOnlyList<User>> SearchByEmailAndIdsAsync(
+        IReadOnlyCollection<Guid> userIds,
+        string? email,
+        CancellationToken cancellationToken = default)
+    {
+        if (userIds.Count == 0)
+        {
+            return Array.Empty<User>();
+        }
+
+        var table = new DataTable();
+        table.Columns.Add("Id", typeof(Guid));
+
+        foreach (var userId in userIds.Distinct())
+        {
+            table.Rows.Add(userId);
+        }
+
+        var parameters = new DynamicParameters();
+
+        parameters.Add(
+            "@UserIds",
+            table.AsTableValuedParameter("dbo.GuidList"));
+
+        parameters.Add(
+            "@Email",
+            string.IsNullOrWhiteSpace(email)
+                ? null
+                : email.Trim());
+
+        await using var connection =
+            new SqlConnection(_connectionString);
+
+        var command = new CommandDefinition(
+            commandText: "dbo.sp_Users_SearchByEmailAndIds",
+            parameters: parameters,
+            commandType: CommandType.StoredProcedure,
+            cancellationToken: cancellationToken);
+
+        var users = await connection.QueryAsync<User>(command);
+
+        return users.AsList();
+    }
 }

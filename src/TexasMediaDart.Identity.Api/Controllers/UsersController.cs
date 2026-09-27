@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using TexasMediaDart.Identity.Api.Models.Users;
 using TexasMediaDart.Identity.Application.Features.Users.Models;
 using TexasMediaDart.Identity.Application.Features.Users.Queries.LookupUsers;
+using TexasMediaDart.Identity.Application.Features.Users.Queries.SearchUsersByEmailAndIds;
 
 namespace TexasMediaDart.Identity.Api.Controllers;
 
@@ -12,11 +13,14 @@ namespace TexasMediaDart.Identity.Api.Controllers;
 public sealed class UsersController : ControllerBase
 {
     private readonly LookupUsersQueryHandler _lookupUsersHandler;
+    private readonly SearchUsersByEmailAndIdsQueryHandler _searchUsersByEmailAndIdsHandler;
 
     public UsersController(
-        LookupUsersQueryHandler lookupUsersHandler)
+        LookupUsersQueryHandler lookupUsersHandler,
+        SearchUsersByEmailAndIdsQueryHandler searchUsersByEmailAndIdsHandler)
     {
         _lookupUsersHandler = lookupUsersHandler;
+        _searchUsersByEmailAndIdsHandler = searchUsersByEmailAndIdsHandler;
     }
 
     [HttpPost("lookup")]
@@ -46,6 +50,50 @@ public sealed class UsersController : ControllerBase
         var result = await _lookupUsersHandler.HandleAsync(
             query,
             cancellationToken);
+
+        return Ok(result);
+    }
+
+    [HttpPost("search-by-email")]
+    [ProducesResponseType(
+        typeof(IReadOnlyList<UserLookupDto>),
+        StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> SearchByEmail(
+        [FromBody] UserEmailSearchRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (request.UserIds.Count == 0)
+        {
+            return BadRequest(new
+            {
+                message = "At least one user id is required."
+            });
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Email))
+        {
+            return BadRequest(new
+            {
+                message = "Email is required."
+            });
+        }
+
+        var userIds = request.UserIds
+            .Distinct()
+            .ToArray();
+
+        var email = request.Email.Trim();
+
+        var query = new SearchUsersByEmailAndIdsQuery(
+            userIds,
+            email);
+
+        var result =
+            await _searchUsersByEmailAndIdsHandler.HandleAsync(
+                query,
+                cancellationToken);
 
         return Ok(result);
     }
