@@ -17,6 +17,11 @@ public interface IUserRepository
         Guid userId,
         CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<User>> SearchByEmailAndIdsAsync(
+        IReadOnlyCollection<Guid> userIds,
+        string? email,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<User>> GetByIdsAsync(
         IReadOnlyCollection<Guid> userIds,
         CancellationToken cancellationToken = default);

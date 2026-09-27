@@ -5,6 +5,7 @@ using TexasMediaDart.Identity.Application.Features.Authentication.Logout;
 using TexasMediaDart.Identity.Application.Features.Authentication.Refresh;
 using TexasMediaDart.Identity.Application.Features.Authentication.Register;
 using TexasMediaDart.Identity.Application.Features.Users.Queries.LookupUsers;
+using TexasMediaDart.Identity.Application.Features.Users.Queries.SearchUsersByEmailAndIds;
 
 namespace TexasMediaDart.Identity.Application;
 
@@ -19,6 +20,7 @@ public static class DependencyInjection
         services.AddScoped<LogoutCommandHandler>();
 
         services.AddScoped<LookupUsersQueryHandler>();
+        services.AddScoped<SearchUsersByEmailAndIdsQueryHandler>();
 
         services.AddValidatorsFromAssemblyContaining<RegisterCommandValidator>();
 
