@@ -111,4 +111,27 @@ public sealed class UserInvitationRepository : IUserInvitationRepository
             .QuerySingleAsync<AcceptUserInvitationIdentityResult>(
                 command);
     }
+
+    public async Task<FinalizeUserInvitationResult> FinalizeAsync(
+        Guid invitationId,
+        Guid identityUserId,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection =
+            new SqlConnection(_connectionString);
+
+        var command = new CommandDefinition(
+            commandText: "dbo.sp_UserInvitations_Finalize",
+            parameters: new
+            {
+                InvitationId = invitationId,
+                IdentityUserId = identityUserId
+            },
+            commandType: CommandType.StoredProcedure,
+            cancellationToken: cancellationToken);
+
+        return await connection
+            .QuerySingleAsync<FinalizeUserInvitationResult>(
+                command);
+    }
 }

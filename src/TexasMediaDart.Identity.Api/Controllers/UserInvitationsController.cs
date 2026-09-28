@@ -7,6 +7,7 @@ using TexasMediaDart.Identity.Api.Models.UserInvitations;
 using TexasMediaDart.Identity.Application.Features.UserInvitations.Commands.AcceptUserInvitation;
 using TexasMediaDart.Identity.Application.Features.UserInvitations.Commands.CreateUserInvitation;
 using TexasMediaDart.Identity.Application.Features.UserInvitations.Queries.ValidateUserInvitation;
+using TexasMediaDart.Identity.Application.Features.UserInvitations.Commands.FinalizeUserInvitation;
 
 namespace TexasMediaDart.Identity.Api.Controllers;
 
@@ -20,19 +21,26 @@ public sealed class UserInvitationsController : ControllerBase
     private readonly ValidateUserInvitationQueryHandler _validateHandler;
     private readonly AcceptUserInvitationCommandHandler _acceptHandler;
     private readonly IValidator<AcceptUserInvitationCommand> _acceptValidator;
+    private readonly FinalizeUserInvitationCommandHandler _finalizeHandler;
+    private readonly IValidator<FinalizeUserInvitationCommand> _finalizeValidator;
+
 
     public UserInvitationsController(
         CreateUserInvitationCommandHandler createHandler,
         IValidator<CreateUserInvitationCommand> createValidator,
         ValidateUserInvitationQueryHandler validateHandler,
         AcceptUserInvitationCommandHandler acceptHandler,
-        IValidator<AcceptUserInvitationCommand> acceptValidator)
+        IValidator<AcceptUserInvitationCommand> acceptValidator,
+        FinalizeUserInvitationCommandHandler finalizeHandler,
+        IValidator<FinalizeUserInvitationCommand> finalizeValidator)
     {
         _createHandler = createHandler;
         _createValidator = createValidator;
         _validateHandler = validateHandler;
         _acceptHandler = acceptHandler;
         _acceptValidator = acceptValidator;
+        _finalizeHandler = finalizeHandler;
+        _finalizeValidator = finalizeValidator;
     }
 
     [HttpPost]
@@ -205,6 +213,81 @@ public sealed class UserInvitationsController : ControllerBase
                 statusCode: StatusCodes.Status409Conflict,
                 title: "Invitation acceptance failed.",
                 detail: "A user with this email already exists.");
+        }
+    }
+    [HttpPost("{invitationId:guid}/finalize")]
+    [ProducesResponseType(
+        typeof(FinalizeUserInvitationResult),
+        StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status410Gone)]
+    public async Task<IActionResult> Finalize(
+        Guid invitationId,
+        [FromBody] FinalizeUserInvitationRequest request,
+        CancellationToken cancellationToken)
+    {
+        var command = new FinalizeUserInvitationCommand(
+            invitationId,
+            request.IdentityUserId);
+
+        var validationResult =
+            await _finalizeValidator.ValidateAsync(
+                command,
+                cancellationToken);
+
+        if (!validationResult.IsValid)
+        {
+            return ValidationProblem(
+                new ValidationProblemDetails(
+                    validationResult
+                        .ToDictionary())
+                {
+                    Title = "Invitation finalization validation failed.",
+                    Status = StatusCodes.Status400BadRequest
+                });
+        }
+
+        try
+        {
+            var result =
+                await _finalizeHandler.HandleAsync(
+                    command,
+                    cancellationToken);
+
+            return Ok(result);
+        }
+        catch (SqlException ex) when (ex.Number == 51024)
+        {
+            return Problem(
+                title: "Invitation finalization failed.",
+                detail: "The invitation was not found.",
+                statusCode: StatusCodes.Status404NotFound);
+        }
+        catch (SqlException ex) when (ex.Number == 51025)
+        {
+            return Problem(
+                title: "Invitation finalization failed.",
+                detail:
+                    "The identity account has not been created for this invitation.",
+                statusCode: StatusCodes.Status409Conflict);
+        }
+        catch (SqlException ex) when (ex.Number == 51026)
+        {
+            return Problem(
+                title: "Invitation finalization failed.",
+                detail:
+                    "The identity user does not match the invitation.",
+                statusCode: StatusCodes.Status409Conflict);
+        }
+        catch (SqlException ex) when (ex.Number == 51027)
+        {
+            return Problem(
+                title: "Invitation finalization failed.",
+                detail: "The invitation has been revoked.",
+                statusCode: StatusCodes.Status410Gone);
         }
     }
 }

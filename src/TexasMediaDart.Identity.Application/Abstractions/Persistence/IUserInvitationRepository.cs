@@ -25,4 +25,8 @@ public interface IUserInvitationRepository
         string tokenHash,
         string passwordHash,
         CancellationToken cancellationToken = default);
+    Task<FinalizeUserInvitationResult> FinalizeAsync(
+        Guid invitationId,
+        Guid identityUserId,
+        CancellationToken cancellationToken = default);
 }
