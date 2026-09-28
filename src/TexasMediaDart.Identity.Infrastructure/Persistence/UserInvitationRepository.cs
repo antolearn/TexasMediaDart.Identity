@@ -1,0 +1,91 @@
+using System.Data;
+using Dapper;
+using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Configuration;
+using TexasMediaDart.Identity.Application.Abstractions.Persistence;
+using TexasMediaDart.Identity.Domain.Entities;
+
+namespace TexasMediaDart.Identity.Infrastructure.Persistence;
+
+public sealed class UserInvitationRepository : IUserInvitationRepository
+{
+    private readonly string _connectionString;
+
+    public UserInvitationRepository(IConfiguration configuration)
+    {
+        _connectionString =
+            configuration.GetConnectionString("DefaultConnection")
+            ?? throw new InvalidOperationException(
+                "Connection string 'DefaultConnection' is not configured.");
+    }
+
+    public async Task<UserInvitation> CreateAsync(
+        string email,
+        Guid organizationId,
+        Guid invitedByIdentityUserId,
+        string tokenHash,
+        DateTime expiresUtc,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection =
+            new SqlConnection(_connectionString);
+
+        var command = new CommandDefinition(
+            commandText: "dbo.sp_UserInvitations_Create",
+            parameters: new
+            {
+                Email = email,
+                OrganizationId = organizationId,
+                InvitedByIdentityUserId = invitedByIdentityUserId,
+                TokenHash = tokenHash,
+                ExpiresUtc = expiresUtc
+            },
+            commandType: CommandType.StoredProcedure,
+            cancellationToken: cancellationToken);
+
+        return await connection
+            .QuerySingleAsync<UserInvitation>(command);
+    }
+
+    public async Task<UserInvitation?> GetByTokenHashAsync(
+        string tokenHash,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection =
+            new SqlConnection(_connectionString);
+
+        var command = new CommandDefinition(
+            commandText: "dbo.sp_UserInvitations_GetByTokenHash",
+            parameters: new
+            {
+                TokenHash = tokenHash
+            },
+            commandType: CommandType.StoredProcedure,
+            cancellationToken: cancellationToken);
+
+        return await connection
+            .QuerySingleOrDefaultAsync<UserInvitation>(command);
+    }
+
+    public async Task<UserInvitation?> GetPendingByEmailAsync(
+        string email,
+        Guid organizationId,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection =
+            new SqlConnection(_connectionString);
+
+        var command = new CommandDefinition(
+            commandText: "dbo.sp_UserInvitations_GetPendingByEmail",
+            parameters: new
+            {
+                Email = email,
+                OrganizationId = organizationId
+            },
+            commandType: CommandType.StoredProcedure,
+            cancellationToken: cancellationToken);
+
+        return await connection
+            .QuerySingleOrDefaultAsync<UserInvitation>(command);
+    }
+}
