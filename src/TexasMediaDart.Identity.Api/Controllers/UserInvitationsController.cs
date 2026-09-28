@@ -8,6 +8,7 @@ using TexasMediaDart.Identity.Application.Features.UserInvitations.Commands.Acce
 using TexasMediaDart.Identity.Application.Features.UserInvitations.Commands.CreateUserInvitation;
 using TexasMediaDart.Identity.Application.Features.UserInvitations.Queries.ValidateUserInvitation;
 using TexasMediaDart.Identity.Application.Features.UserInvitations.Commands.FinalizeUserInvitation;
+using TexasMediaDart.Identity.Api.Authentication;
 
 namespace TexasMediaDart.Identity.Api.Controllers;
 
@@ -216,6 +217,9 @@ public sealed class UserInvitationsController : ControllerBase
         }
     }
     [HttpPost("{invitationId:guid}/finalize")]
+    [Authorize(
+    AuthenticationSchemes =
+        ServiceApiKeyDefaults.AuthenticationScheme)]
     [ProducesResponseType(
         typeof(FinalizeUserInvitationResult),
         StatusCodes.Status200OK)]

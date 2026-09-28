@@ -5,6 +5,8 @@ using TexasMediaDart.Identity.Application;
 using TexasMediaDart.Identity.Infrastructure;
 using TexasMediaDart.Identity.Api.BackgroundServices;
 using TexasMediaDart.Identity.Api.Extensions;
+using Microsoft.AspNetCore.Authentication;
+using TexasMediaDart.Identity.Api.Authentication;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -83,7 +85,6 @@ var jwtAudience =
     builder.Configuration["Jwt:Audience"]
     ?? throw new InvalidOperationException(
         "JWT audience is not configured.");
-
 builder.Services
     .AddAuthentication(
         JwtBearerDefaults.AuthenticationScheme)
@@ -107,8 +108,14 @@ builder.Services
 
                 ClockSkew = TimeSpan.Zero
             };
-    });
-
+    })
+    .AddScheme<
+        AuthenticationSchemeOptions,
+        ServiceApiKeyAuthenticationHandler>(
+            ServiceApiKeyDefaults.AuthenticationScheme,
+            _ =>
+            {
+            });
 builder.Services.AddAuthorization();
 
 var app = builder.Build();
