@@ -1,9 +1,9 @@
 CREATE PROCEDURE [dbo].[sp_UserInvitations_Create]
-    @Email                    NVARCHAR(320),
-    @OrganizationId           UNIQUEIDENTIFIER,
-    @InvitedByIdentityUserId  UNIQUEIDENTIFIER,
-    @TokenHash                CHAR(64),
-    @ExpiresUtc               DATETIME2(7)
+    @Email NVARCHAR(320),
+    @OrganizationId UNIQUEIDENTIFIER,
+    @InvitedByIdentityUserId UNIQUEIDENTIFIER,
+    @TokenHash CHAR(64),
+    @ExpiresUtc DATETIME2(7)
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -51,7 +51,7 @@ BEGIN
           AND [IsDeleted] = 0
     )
     BEGIN
-        THROW 51007, 'Inviting identity user was not found or is inactive.', 1;
+        THROW 51007, 'Inviting user was not found or is inactive.', 1;
     END;
 
     IF EXISTS
@@ -94,6 +94,8 @@ BEGIN
         INSERTED.[InvitedByIdentityUserId],
         INSERTED.[TokenHash],
         INSERTED.[ExpiresUtc],
+        INSERTED.[CreatedIdentityUserId],
+        INSERTED.[IdentityCreatedUtc],
         INSERTED.[AcceptedUtc],
         INSERTED.[RevokedUtc],
         INSERTED.[CreatedUtc]
@@ -106,4 +108,3 @@ BEGIN
         @ExpiresUtc
     );
 END;
-GO

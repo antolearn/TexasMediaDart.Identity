@@ -14,6 +14,10 @@ CREATE TABLE [dbo].[UserInvitations]
 
     [ExpiresUtc] DATETIME2(7) NOT NULL,
 
+    [CreatedIdentityUserId] UNIQUEIDENTIFIER NULL,
+
+    [IdentityCreatedUtc] DATETIME2(7) NULL,
+
     [AcceptedUtc] DATETIME2(7) NULL,
 
     [RevokedUtc] DATETIME2(7) NULL,
@@ -32,6 +36,24 @@ CREATE TABLE [dbo].[UserInvitations]
         FOREIGN KEY ([InvitedByIdentityUserId])
         REFERENCES [dbo].[Users] ([UserId]),
 
+    CONSTRAINT [FK_UserInvitations_CreatedIdentityUser]
+        FOREIGN KEY ([CreatedIdentityUserId])
+        REFERENCES [dbo].[Users] ([UserId]),
+
     CONSTRAINT [CK_UserInvitations_ExpiresUtc]
-        CHECK ([ExpiresUtc] > [CreatedUtc])
+        CHECK ([ExpiresUtc] > [CreatedUtc]),
+
+    CONSTRAINT [CK_UserInvitations_IdentityCreated]
+        CHECK
+        (
+            (
+                [CreatedIdentityUserId] IS NULL
+                AND [IdentityCreatedUtc] IS NULL
+            )
+            OR
+            (
+                [CreatedIdentityUserId] IS NOT NULL
+                AND [IdentityCreatedUtc] IS NOT NULL
+            )
+        )
 );

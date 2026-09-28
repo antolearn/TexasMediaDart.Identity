@@ -88,4 +88,27 @@ public sealed class UserInvitationRepository : IUserInvitationRepository
         return await connection
             .QuerySingleOrDefaultAsync<UserInvitation>(command);
     }
+
+    public async Task<AcceptUserInvitationIdentityResult> AcceptIdentityAsync(
+        string tokenHash,
+        string passwordHash,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection =
+            new SqlConnection(_connectionString);
+
+        var command = new CommandDefinition(
+            commandText: "dbo.sp_UserInvitations_AcceptIdentity",
+            parameters: new
+            {
+                TokenHash = tokenHash,
+                PasswordHash = passwordHash
+            },
+            commandType: CommandType.StoredProcedure,
+            cancellationToken: cancellationToken);
+
+        return await connection
+            .QuerySingleAsync<AcceptUserInvitationIdentityResult>(
+                command);
+    }
 }

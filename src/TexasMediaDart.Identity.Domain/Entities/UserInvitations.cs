@@ -14,6 +14,10 @@ public sealed class UserInvitation
 
     public DateTime ExpiresUtc { get; private set; }
 
+    public Guid? CreatedIdentityUserId { get; private set; }
+
+    public DateTime? IdentityCreatedUtc { get; private set; }
+
     public DateTime? AcceptedUtc { get; private set; }
 
     public DateTime? RevokedUtc { get; private set; }
@@ -31,6 +35,8 @@ public sealed class UserInvitation
         Guid invitedByIdentityUserId,
         string tokenHash,
         DateTime expiresUtc,
+        Guid? createdIdentityUserId,
+        DateTime? identityCreatedUtc,
         DateTime? acceptedUtc,
         DateTime? revokedUtc,
         DateTime createdUtc)
@@ -41,6 +47,8 @@ public sealed class UserInvitation
         InvitedByIdentityUserId = invitedByIdentityUserId;
         TokenHash = tokenHash;
         ExpiresUtc = expiresUtc;
+        CreatedIdentityUserId = createdIdentityUserId;
+        IdentityCreatedUtc = identityCreatedUtc;
         AcceptedUtc = acceptedUtc;
         RevokedUtc = revokedUtc;
         CreatedUtc = createdUtc;

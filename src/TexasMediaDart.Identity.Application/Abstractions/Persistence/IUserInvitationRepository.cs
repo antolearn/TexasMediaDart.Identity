@@ -20,4 +20,9 @@ public interface IUserInvitationRepository
         string email,
         Guid organizationId,
         CancellationToken cancellationToken = default);
+
+    Task<AcceptUserInvitationIdentityResult> AcceptIdentityAsync(
+        string tokenHash,
+        string passwordHash,
+        CancellationToken cancellationToken = default);
 }

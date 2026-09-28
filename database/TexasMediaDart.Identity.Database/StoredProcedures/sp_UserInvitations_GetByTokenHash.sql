@@ -23,10 +23,11 @@ BEGIN
         [InvitedByIdentityUserId],
         [TokenHash],
         [ExpiresUtc],
+        [CreatedIdentityUserId],
+        [IdentityCreatedUtc],
         [AcceptedUtc],
         [RevokedUtc],
         [CreatedUtc]
     FROM [dbo].[UserInvitations]
     WHERE [TokenHash] = @TokenHash;
 END;
-GO

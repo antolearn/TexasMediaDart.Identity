@@ -1,5 +1,5 @@
 CREATE PROCEDURE [dbo].[sp_UserInvitations_GetPendingByEmail]
-    @Email          NVARCHAR(320),
+    @Email NVARCHAR(320),
     @OrganizationId UNIQUEIDENTIFIER
 AS
 BEGIN
@@ -24,6 +24,8 @@ BEGIN
         [InvitedByIdentityUserId],
         [TokenHash],
         [ExpiresUtc],
+        [CreatedIdentityUserId],
+        [IdentityCreatedUtc],
         [AcceptedUtc],
         [RevokedUtc],
         [CreatedUtc]
@@ -35,4 +37,3 @@ BEGIN
       AND [ExpiresUtc] > SYSUTCDATETIME()
     ORDER BY [CreatedUtc] DESC;
 END;
-GO

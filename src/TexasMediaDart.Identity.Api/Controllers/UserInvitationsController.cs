@@ -2,7 +2,9 @@ using System.Security.Claims;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Data.SqlClient;
 using TexasMediaDart.Identity.Api.Models.UserInvitations;
+using TexasMediaDart.Identity.Application.Features.UserInvitations.Commands.AcceptUserInvitation;
 using TexasMediaDart.Identity.Application.Features.UserInvitations.Commands.CreateUserInvitation;
 using TexasMediaDart.Identity.Application.Features.UserInvitations.Queries.ValidateUserInvitation;
 
@@ -16,14 +18,21 @@ public sealed class UserInvitationsController : ControllerBase
     private readonly CreateUserInvitationCommandHandler _createHandler;
     private readonly IValidator<CreateUserInvitationCommand> _createValidator;
     private readonly ValidateUserInvitationQueryHandler _validateHandler;
+    private readonly AcceptUserInvitationCommandHandler _acceptHandler;
+    private readonly IValidator<AcceptUserInvitationCommand> _acceptValidator;
+
     public UserInvitationsController(
         CreateUserInvitationCommandHandler createHandler,
         IValidator<CreateUserInvitationCommand> createValidator,
-        ValidateUserInvitationQueryHandler validateHandler)
+        ValidateUserInvitationQueryHandler validateHandler,
+        AcceptUserInvitationCommandHandler acceptHandler,
+        IValidator<AcceptUserInvitationCommand> acceptValidator)
     {
         _createHandler = createHandler;
         _createValidator = createValidator;
         _validateHandler = validateHandler;
+        _acceptHandler = acceptHandler;
+        _acceptValidator = acceptValidator;
     }
 
     [HttpPost]
@@ -114,4 +123,88 @@ public sealed class UserInvitationsController : ControllerBase
         return Ok(result);
     }
 
+    [HttpPost("accept")]
+    [AllowAnonymous]
+    [ProducesResponseType(
+        typeof(AcceptUserInvitationResult),
+        StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status410Gone)]
+    public async Task<IActionResult> Accept(
+        [FromBody] AcceptUserInvitationRequest request,
+        CancellationToken cancellationToken)
+    {
+        var command = new AcceptUserInvitationCommand(
+            request.Token,
+            request.Password,
+            request.ConfirmPassword);
+
+        var validationResult =
+            await _acceptValidator.ValidateAsync(
+                command,
+                cancellationToken);
+
+        if (!validationResult.IsValid)
+        {
+            var errors = validationResult.Errors
+                .GroupBy(error => error.PropertyName)
+                .ToDictionary(
+                    group => group.Key,
+                    group => group
+                        .Select(error => error.ErrorMessage)
+                        .ToArray());
+
+            return ValidationProblem(
+                new ValidationProblemDetails(errors)
+                {
+                    Title = "Invitation acceptance validation failed.",
+                    Status = StatusCodes.Status400BadRequest
+                });
+        }
+
+        try
+        {
+            var result = await _acceptHandler.HandleAsync(
+                command,
+                cancellationToken);
+
+            return Ok(result);
+        }
+        catch (SqlException ex) when (ex.Number == 51017)
+        {
+            return Problem(
+                statusCode: StatusCodes.Status400BadRequest,
+                title: "Invitation acceptance failed.",
+                detail: "The invitation is invalid.");
+        }
+        catch (SqlException ex) when (ex.Number == 51018)
+        {
+            return Problem(
+                statusCode: StatusCodes.Status410Gone,
+                title: "Invitation acceptance failed.",
+                detail: "The invitation has been revoked.");
+        }
+        catch (SqlException ex) when (ex.Number == 51019)
+        {
+            return Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "Invitation acceptance failed.",
+                detail: "The invitation has already been accepted.");
+        }
+        catch (SqlException ex) when (ex.Number == 51020)
+        {
+            return Problem(
+                statusCode: StatusCodes.Status410Gone,
+                title: "Invitation acceptance failed.",
+                detail: "The invitation has expired.");
+        }
+        catch (SqlException ex) when (ex.Number == 51021)
+        {
+            return Problem(
+                statusCode: StatusCodes.Status409Conflict,
+                title: "Invitation acceptance failed.",
+                detail: "A user with this email already exists.");
+        }
+    }
 }
