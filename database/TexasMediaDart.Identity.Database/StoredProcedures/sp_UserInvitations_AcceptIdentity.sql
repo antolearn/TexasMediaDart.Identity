@@ -53,14 +53,16 @@ BEGIN
             THROW 51017, 'Invitation was not found.', 1;
         END;
 
+        /*
+            Revocation remains the highest-priority terminal state.
+
+            Even if an Identity account was created during an earlier
+            attempt, a revoked invitation must not continue through
+            the onboarding workflow.
+        */
         IF @RevokedUtc IS NOT NULL
         BEGIN
             THROW 51018, 'Invitation has been revoked.', 1;
-        END;
-
-        IF @AcceptedUtc IS NOT NULL
-        BEGIN
-            THROW 51019, 'Invitation has already been accepted.', 1;
         END;
 
         /*
@@ -68,9 +70,17 @@ BEGIN
             previous attempt, return the existing account instead
             of creating another user.
 
-            This makes the Identity portion of invitation acceptance
-            idempotent and allows the Main API to retry Organization
-            onboarding safely.
+            This includes invitations that have already been fully
+            accepted.
+
+            It makes Identity acceptance idempotent and allows the
+            Main API to safely retry the complete onboarding workflow.
+
+            This check intentionally occurs before AcceptedUtc and
+            ExpiresUtc. If Identity creation already succeeded, a
+            retry must be able to recover the existing Identity user
+            even if the invitation was subsequently finalized or has
+            expired.
         */
         IF @CreatedIdentityUserId IS NOT NULL
         BEGIN
@@ -89,6 +99,26 @@ BEGIN
             RETURN;
         END;
 
+        /*
+            AcceptedUtc without CreatedIdentityUserId represents an
+            inconsistent invitation state.
+
+            Under the normal lifecycle, Identity creation must occur
+            before finalization. Do not create another Identity user
+            when an invitation is already marked accepted.
+        */
+        IF @AcceptedUtc IS NOT NULL
+        BEGIN
+            THROW 51019, 'Invitation has already been accepted.', 1;
+        END;
+
+        /*
+            Expiration prevents creation of a new Identity account.
+
+            An Identity account that was successfully created before
+            expiration is handled by the idempotent recovery branch
+            above.
+        */
         IF @ExpiresUtc <= SYSUTCDATETIME()
         BEGIN
             THROW 51020, 'Invitation has expired.', 1;
@@ -96,9 +126,11 @@ BEGIN
 
         /*
             The invitation was originally created only when the
-            email did not exist. Recheck while holding the invitation
-            lock in case an account was created independently after
-            the invitation was issued.
+            email did not exist.
+
+            Recheck while holding the invitation lock in case an
+            account was created independently after the invitation
+            was issued.
         */
         IF EXISTS
         (
