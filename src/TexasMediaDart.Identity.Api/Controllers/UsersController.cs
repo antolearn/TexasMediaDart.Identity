@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TexasMediaDart.Identity.Api.Models.Users;
 using TexasMediaDart.Identity.Application.Features.Users.Models;
+using TexasMediaDart.Identity.Application.Features.Users.Queries.GetUserByEmail;
 using TexasMediaDart.Identity.Application.Features.Users.Queries.LookupUsers;
 using TexasMediaDart.Identity.Application.Features.Users.Queries.SearchUsersByEmailAndIds;
 
@@ -13,14 +14,56 @@ namespace TexasMediaDart.Identity.Api.Controllers;
 public sealed class UsersController : ControllerBase
 {
     private readonly LookupUsersQueryHandler _lookupUsersHandler;
-    private readonly SearchUsersByEmailAndIdsQueryHandler _searchUsersByEmailAndIdsHandler;
+    private readonly SearchUsersByEmailAndIdsQueryHandler
+        _searchUsersByEmailAndIdsHandler;
+    private readonly GetUserByEmailQueryHandler _getUserByEmailHandler;
 
     public UsersController(
         LookupUsersQueryHandler lookupUsersHandler,
-        SearchUsersByEmailAndIdsQueryHandler searchUsersByEmailAndIdsHandler)
+        SearchUsersByEmailAndIdsQueryHandler searchUsersByEmailAndIdsHandler,
+        GetUserByEmailQueryHandler getUserByEmailHandler)
     {
         _lookupUsersHandler = lookupUsersHandler;
-        _searchUsersByEmailAndIdsHandler = searchUsersByEmailAndIdsHandler;
+        _searchUsersByEmailAndIdsHandler =
+            searchUsersByEmailAndIdsHandler;
+        _getUserByEmailHandler = getUserByEmailHandler;
+    }
+
+    [HttpGet("by-email")]
+    [ProducesResponseType(
+        typeof(UserLookupDto),
+        StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetByEmail(
+        [FromQuery] string? email,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            return BadRequest(new
+            {
+                message = "Email is required."
+            });
+        }
+
+        var query = new GetUserByEmailQuery(
+            email.Trim());
+
+        var result = await _getUserByEmailHandler.HandleAsync(
+            query,
+            cancellationToken);
+
+        if (result is null)
+        {
+            return NotFound(new
+            {
+                message = "User not found."
+            });
+        }
+
+        return Ok(result);
     }
 
     [HttpPost("lookup")]
