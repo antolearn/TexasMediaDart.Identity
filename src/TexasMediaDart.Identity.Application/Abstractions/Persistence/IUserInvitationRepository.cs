@@ -11,6 +11,12 @@ public interface IUserInvitationRepository
         string tokenHash,
         DateTime expiresUtc,
         CancellationToken cancellationToken = default);
+    Task<UserInvitation> ResendAsync(
+        Guid invitationId,
+        Guid organizationId,
+        string tokenHash,
+        DateTime expiresUtc,
+        CancellationToken cancellationToken = default);
 
     Task<UserInvitation?> GetByTokenHashAsync(
         string tokenHash,
@@ -18,6 +24,10 @@ public interface IUserInvitationRepository
 
     Task<UserInvitation?> GetPendingByEmailAsync(
         string email,
+        Guid organizationId,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<PendingUserInvitation>> GetPendingAsync(
         Guid organizationId,
         CancellationToken cancellationToken = default);
 

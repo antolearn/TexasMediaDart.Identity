@@ -11,6 +11,8 @@ using TexasMediaDart.Identity.Application.Features.Users.Queries.GetUserByEmail;
 using TexasMediaDart.Identity.Application.Features.Users.Queries.LookupUsers;
 using TexasMediaDart.Identity.Application.Features.Users.Queries.SearchUsersByEmailAndIds;
 using TexasMediaDart.Identity.Application.Features.UserInvitations.Commands.FinalizeUserInvitation;
+using TexasMediaDart.Identity.Application.Features.UserInvitations.Commands.ResendUserInvitation;
+using TexasMediaDart.Identity.Application.Features.UserInvitations.Queries.GetPendingUserInvitations;
 
 namespace TexasMediaDart.Identity.Application;
 
@@ -33,7 +35,16 @@ public static class DependencyInjection
         services.AddScoped<FinalizeUserInvitationCommandHandler>();
         services.AddScoped<ValidateUserInvitationQueryHandler>();
 
+        services.AddScoped<CreateUserInvitationCommandHandler>();
+        services.AddScoped<ResendUserInvitationCommandHandler>();
+        services.AddScoped<AcceptUserInvitationCommandHandler>();
+        services.AddScoped<FinalizeUserInvitationCommandHandler>();
+        services.AddScoped<ValidateUserInvitationQueryHandler>();
+        services.AddScoped<GetPendingUserInvitationsQueryHandler>();
+        
         services.AddValidatorsFromAssemblyContaining<RegisterCommandValidator>();
+
+
 
         return services;
     }

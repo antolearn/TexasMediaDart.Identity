@@ -47,6 +47,32 @@ public sealed class UserInvitationRepository : IUserInvitationRepository
             .QuerySingleAsync<UserInvitation>(command);
     }
 
+    public async Task<UserInvitation> ResendAsync(
+        Guid invitationId,
+        Guid organizationId,
+        string tokenHash,
+        DateTime expiresUtc,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection =
+            new SqlConnection(_connectionString);
+
+        var command = new CommandDefinition(
+            commandText: "dbo.sp_UserInvitations_Resend",
+            parameters: new
+            {
+                InvitationId = invitationId,
+                OrganizationId = organizationId,
+                TokenHash = tokenHash,
+                ExpiresUtc = expiresUtc
+            },
+            commandType: CommandType.StoredProcedure,
+            cancellationToken: cancellationToken);
+
+        return await connection
+            .QuerySingleAsync<UserInvitation>(command);
+    }
+
     public async Task<UserInvitation?> GetByTokenHashAsync(
         string tokenHash,
         CancellationToken cancellationToken = default)
@@ -89,6 +115,28 @@ public sealed class UserInvitationRepository : IUserInvitationRepository
             .QuerySingleOrDefaultAsync<UserInvitation>(command);
     }
 
+    public async Task<IReadOnlyList<PendingUserInvitation>> GetPendingAsync(
+        Guid organizationId,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection =
+            new SqlConnection(_connectionString);
+
+        var command = new CommandDefinition(
+            commandText: "dbo.sp_UserInvitations_GetPending",
+            parameters: new
+            {
+                OrganizationId = organizationId
+            },
+            commandType: CommandType.StoredProcedure,
+            cancellationToken: cancellationToken);
+
+        var invitations =
+            await connection.QueryAsync<PendingUserInvitation>(
+                command);
+
+        return invitations.AsList();
+    }
     public async Task<AcceptUserInvitationIdentityResult> AcceptIdentityAsync(
         string tokenHash,
         string passwordHash,
