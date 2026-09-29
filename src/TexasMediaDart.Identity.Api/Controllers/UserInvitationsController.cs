@@ -9,6 +9,8 @@ using TexasMediaDart.Identity.Application.Features.UserInvitations.Commands.Crea
 using TexasMediaDart.Identity.Application.Features.UserInvitations.Queries.ValidateUserInvitation;
 using TexasMediaDart.Identity.Application.Features.UserInvitations.Commands.FinalizeUserInvitation;
 using TexasMediaDart.Identity.Api.Authentication;
+using TexasMediaDart.Identity.Application.Features.UserInvitations.Commands.ResendUserInvitation;
+using TexasMediaDart.Identity.Application.Features.UserInvitations.Queries.GetPendingUserInvitations;
 
 namespace TexasMediaDart.Identity.Api.Controllers;
 
@@ -18,6 +20,7 @@ namespace TexasMediaDart.Identity.Api.Controllers;
 public sealed class UserInvitationsController : ControllerBase
 {
     private readonly CreateUserInvitationCommandHandler _createHandler;
+    private readonly ResendUserInvitationCommandHandler _resendHandler;
     private readonly IValidator<CreateUserInvitationCommand> _createValidator;
     private readonly ValidateUserInvitationQueryHandler _validateHandler;
     private readonly AcceptUserInvitationCommandHandler _acceptHandler;
@@ -25,9 +28,12 @@ public sealed class UserInvitationsController : ControllerBase
     private readonly FinalizeUserInvitationCommandHandler _finalizeHandler;
     private readonly IValidator<FinalizeUserInvitationCommand> _finalizeValidator;
 
-
+    private readonly GetPendingUserInvitationsQueryHandler
+    _getPendingHandler;
     public UserInvitationsController(
         CreateUserInvitationCommandHandler createHandler,
+        ResendUserInvitationCommandHandler resendHandler,
+        GetPendingUserInvitationsQueryHandler getPendingHandler,
         IValidator<CreateUserInvitationCommand> createValidator,
         ValidateUserInvitationQueryHandler validateHandler,
         AcceptUserInvitationCommandHandler acceptHandler,
@@ -36,6 +42,8 @@ public sealed class UserInvitationsController : ControllerBase
         IValidator<FinalizeUserInvitationCommand> finalizeValidator)
     {
         _createHandler = createHandler;
+        _resendHandler = resendHandler;
+        _getPendingHandler = getPendingHandler;
         _createValidator = createValidator;
         _validateHandler = validateHandler;
         _acceptHandler = acceptHandler;
@@ -110,6 +118,126 @@ public sealed class UserInvitationsController : ControllerBase
                 statusCode: StatusCodes.Status409Conflict,
                 title: "Invitation failed.",
                 detail: ex.Message);
+        }
+    }
+
+    [HttpGet("pending")]
+    [Authorize(
+        AuthenticationSchemes =
+            ServiceApiKeyDefaults.AuthenticationScheme)]
+    [ProducesResponseType(
+        typeof(IReadOnlyList<PendingUserInvitationResult>),
+        StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> GetPending(
+        [FromQuery] Guid organizationId,
+        CancellationToken cancellationToken)
+    {
+        if (organizationId == Guid.Empty)
+        {
+            return Problem(
+                title: "Pending invitations query failed.",
+                detail: "Organization id is required.",
+                statusCode: StatusCodes.Status400BadRequest);
+        }
+
+        try
+        {
+            var query =
+                new GetPendingUserInvitationsQuery(
+                    organizationId);
+
+            var result =
+                await _getPendingHandler.HandleAsync(
+                    query,
+                    cancellationToken);
+
+            return Ok(result);
+        }
+        catch (ArgumentException ex)
+        {
+            return Problem(
+                title: "Pending invitations query failed.",
+                detail: ex.Message,
+                statusCode: StatusCodes.Status400BadRequest);
+        }
+    }
+
+    [HttpPost("{invitationId:guid}/resend")]
+    [Authorize(
+        AuthenticationSchemes =
+            ServiceApiKeyDefaults.AuthenticationScheme)]
+    [ProducesResponseType(
+        typeof(ResendUserInvitationResult),
+        StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status410Gone)]
+    public async Task<IActionResult> Resend(
+        Guid invitationId,
+        [FromQuery] Guid organizationId,
+        CancellationToken cancellationToken)
+    {
+        if (invitationId == Guid.Empty)
+        {
+            return Problem(
+                title: "Invitation resend failed.",
+                detail: "Invitation id is required.",
+                statusCode: StatusCodes.Status400BadRequest);
+        }
+
+        if (organizationId == Guid.Empty)
+        {
+            return Problem(
+                title: "Invitation resend failed.",
+                detail: "Organization id is required.",
+                statusCode: StatusCodes.Status400BadRequest);
+        }
+
+        try
+        {
+            var command =
+                new ResendUserInvitationCommand(
+                    invitationId,
+                    organizationId);
+
+            var result =
+                await _resendHandler.HandleAsync(
+                    command,
+                    cancellationToken);
+
+            return Ok(result);
+        }
+        catch (ArgumentException ex)
+        {
+            return Problem(
+                title: "Invitation resend failed.",
+                detail: ex.Message,
+                statusCode: StatusCodes.Status400BadRequest);
+        }
+        catch (SqlException ex) when (ex.Number == 51031)
+        {
+            return Problem(
+                title: "Invitation resend failed.",
+                detail: "The invitation was not found.",
+                statusCode: StatusCodes.Status404NotFound);
+        }
+        catch (SqlException ex) when (ex.Number == 51032)
+        {
+            return Problem(
+                title: "Invitation resend failed.",
+                detail: "The invitation has already been accepted.",
+                statusCode: StatusCodes.Status409Conflict);
+        }
+        catch (SqlException ex) when (ex.Number == 51033)
+        {
+            return Problem(
+                title: "Invitation resend failed.",
+                detail: "The invitation has been revoked.",
+                statusCode: StatusCodes.Status410Gone);
         }
     }
 
