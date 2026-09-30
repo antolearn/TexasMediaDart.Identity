@@ -8,6 +8,11 @@ public interface IUserRepository
         string email,
         CancellationToken cancellationToken = default);
 
+    Task<User> CreateWithTermsAcceptanceAsync(
+        string email,
+        string passwordHash,
+        CancellationToken cancellationToken = default);
+
     Task<User> CreateAsync(
         string email,
         string passwordHash,

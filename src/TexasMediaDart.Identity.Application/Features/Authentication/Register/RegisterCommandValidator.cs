@@ -33,5 +33,9 @@ public sealed class RegisterCommandValidator : AbstractValidator<RegisterCommand
             .WithMessage("Confirm password is required.")
             .Equal(x => x.Password)
             .WithMessage("Password and confirm password must match.");
+
+        RuleFor(x => x.AcceptTerms)
+            .Equal(true)
+            .WithMessage("You must accept the Terms and Conditions to register.");
     }
 }

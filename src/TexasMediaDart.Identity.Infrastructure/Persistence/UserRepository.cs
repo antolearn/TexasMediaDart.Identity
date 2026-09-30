@@ -160,4 +160,27 @@ public sealed class UserRepository : IUserRepository
 
         return users.AsList();
     }
+    public async Task<User> CreateWithTermsAcceptanceAsync(
+        string email,
+        string passwordHash,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection =
+            new SqlConnection(_connectionString);
+
+        var command = new CommandDefinition(
+            commandText: "dbo.sp_Users_CreateWithTermsAcceptance",
+            parameters: new
+            {
+                Email = email,
+                PasswordHash = passwordHash
+            },
+            commandType: CommandType.StoredProcedure,
+            cancellationToken: cancellationToken);
+
+        var user = await connection.QuerySingleAsync<User>(
+            command);
+
+        return user;
+    }
 }

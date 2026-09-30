@@ -13,6 +13,7 @@ using TexasMediaDart.Identity.Application.Features.Users.Queries.SearchUsersByEm
 using TexasMediaDart.Identity.Application.Features.UserInvitations.Commands.FinalizeUserInvitation;
 using TexasMediaDart.Identity.Application.Features.UserInvitations.Commands.ResendUserInvitation;
 using TexasMediaDart.Identity.Application.Features.UserInvitations.Queries.GetPendingUserInvitations;
+using TexasMediaDart.Identity.Application.Features.Terms.GetCurrent;
 
 namespace TexasMediaDart.Identity.Application;
 
@@ -26,26 +27,18 @@ public static class DependencyInjection
         services.AddScoped<RefreshCommandHandler>();
         services.AddScoped<LogoutCommandHandler>();
 
+        services.AddScoped<GetCurrentTermsQueryHandler>();
+
         services.AddScoped<LookupUsersQueryHandler>();
         services.AddScoped<SearchUsersByEmailAndIdsQueryHandler>();
         services.AddScoped<GetUserByEmailQueryHandler>();
-
         services.AddScoped<CreateUserInvitationCommandHandler>();
         services.AddScoped<AcceptUserInvitationCommandHandler>();
         services.AddScoped<FinalizeUserInvitationCommandHandler>();
         services.AddScoped<ValidateUserInvitationQueryHandler>();
-
-        services.AddScoped<CreateUserInvitationCommandHandler>();
         services.AddScoped<ResendUserInvitationCommandHandler>();
-        services.AddScoped<AcceptUserInvitationCommandHandler>();
-        services.AddScoped<FinalizeUserInvitationCommandHandler>();
         services.AddScoped<ValidateUserInvitationQueryHandler>();
-        services.AddScoped<GetPendingUserInvitationsQueryHandler>();
-        
         services.AddValidatorsFromAssemblyContaining<RegisterCommandValidator>();
-
-
-
         return services;
     }
 }
