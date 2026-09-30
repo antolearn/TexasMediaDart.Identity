@@ -30,12 +30,20 @@ public sealed class RegisterCommandHandler
                 "A user with this email already exists.");
         }
 
-        var passwordHash = _passwordHasher.Hash(command.Password);
+        if (!command.AcceptTerms)
+        {
+            throw new InvalidOperationException(
+                "You must accept the Terms and Conditions to register.");
+        }
 
-        var user = await _userRepository.CreateAsync(
-            command.Email,
-            passwordHash,
-            cancellationToken);
+        var passwordHash =
+            _passwordHasher.Hash(command.Password);
+
+        var user =
+            await _userRepository.CreateWithTermsAcceptanceAsync(
+                command.Email,
+                passwordHash,
+                cancellationToken);
 
         return new RegisterResult(
             user.UserId,
