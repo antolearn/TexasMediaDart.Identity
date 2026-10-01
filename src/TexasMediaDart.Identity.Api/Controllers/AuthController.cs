@@ -1,16 +1,17 @@
-using FluentValidation;
-using Microsoft.AspNetCore.Mvc;
-using TexasMediaDart.Identity.Application.Features.Authentication.Login;
-using TexasMediaDart.Identity.Application.Features.Authentication.Register;
 using System.Security.Claims;
+using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
-using TexasMediaDart.Identity.Application.Features.Authentication.Refresh;
+using Microsoft.AspNetCore.Mvc;
+using TexasMediaDart.Identity.Api.Models.Authentication;
+using TexasMediaDart.Identity.Application.Features.Authentication.Login;
 using TexasMediaDart.Identity.Application.Features.Authentication.Logout;
+using TexasMediaDart.Identity.Application.Features.Authentication.Refresh;
+using TexasMediaDart.Identity.Application.Features.Authentication.Register;
+using TexasMediaDart.Identity.Application.Features.Authentication.VerifyEmail;
 
 namespace TexasMediaDart.Identity.Api.Controllers;
 
 [ApiController]
-
 [Route("api/auth")]
 public sealed class AuthController : ControllerBase
 {
@@ -19,8 +20,12 @@ public sealed class AuthController : ControllerBase
 
     private readonly LoginCommandHandler _loginHandler;
     private readonly IValidator<LoginCommand> _loginValidator;
+
     private readonly RefreshCommandHandler _refreshHandler;
     private readonly LogoutCommandHandler _logoutHandler;
+
+    private readonly VerifyEmailCommandHandler _verifyEmailCommandHandler;
+    private readonly IValidator<VerifyEmailCommand> _verifyEmailValidator;
 
     public AuthController(
         RegisterCommandHandler registerHandler,
@@ -28,14 +33,21 @@ public sealed class AuthController : ControllerBase
         LoginCommandHandler loginHandler,
         IValidator<LoginCommand> loginValidator,
         RefreshCommandHandler refreshHandler,
-        LogoutCommandHandler logoutHandler)
+        LogoutCommandHandler logoutHandler,
+        VerifyEmailCommandHandler verifyEmailCommandHandler,
+        IValidator<VerifyEmailCommand> verifyEmailValidator)
     {
         _registerHandler = registerHandler;
         _registerValidator = registerValidator;
+
         _loginHandler = loginHandler;
         _loginValidator = loginValidator;
+
         _refreshHandler = refreshHandler;
         _logoutHandler = logoutHandler;
+
+        _verifyEmailCommandHandler = verifyEmailCommandHandler;
+        _verifyEmailValidator = verifyEmailValidator;
     }
 
     [Authorize]
@@ -57,6 +69,7 @@ public sealed class AuthController : ControllerBase
         });
     }
 
+    [AllowAnonymous]
     [HttpPost("register")]
     public async Task<IActionResult> Register(
         [FromBody] RegisterCommand command,
@@ -87,9 +100,10 @@ public sealed class AuthController : ControllerBase
 
         try
         {
-            var result = await _registerHandler.HandleAsync(
-                command,
-                cancellationToken);
+            var result =
+                await _registerHandler.HandleAsync(
+                    command,
+                    cancellationToken);
 
             return Created(
                 $"/api/auth/users/{result.UserId}",
@@ -107,7 +121,71 @@ public sealed class AuthController : ControllerBase
         }
     }
 
+    [AllowAnonymous]
+    [HttpPost("verify-email")]
+    [ProducesResponseType(
+        typeof(EmailVerificationResult),
+        StatusCodes.Status200OK)]
+    [ProducesResponseType(
+        typeof(ValidationProblemDetails),
+        StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<EmailVerificationResult>> VerifyEmail(
+        [FromBody] VerifyEmailRequest request,
+        CancellationToken cancellationToken)
+    {
+        var command =
+            new VerifyEmailCommand(request.Token);
+
+        var validationResult =
+            await _verifyEmailValidator.ValidateAsync(
+                command,
+                cancellationToken);
+
+        if (!validationResult.IsValid)
+        {
+            var errors = validationResult.Errors
+                .GroupBy(x => x.PropertyName)
+                .ToDictionary(
+                    group => group.Key,
+                    group => group
+                        .Select(x => x.ErrorMessage)
+                        .ToArray());
+
+            return ValidationProblem(
+                new ValidationProblemDetails(errors)
+                {
+                    Title = "Email verification validation failed.",
+                    Status = StatusCodes.Status400BadRequest
+                });
+        }
+
+        try
+        {
+            var result =
+                await _verifyEmailCommandHandler.HandleAsync(
+                    command,
+                    cancellationToken);
+
+            return Ok(result);
+        }
+        catch (EmailVerificationException ex)
+        {
+            return BadRequest(
+                new ProblemDetails
+                {
+                    Title = "Email verification failed.",
+                    Detail = ex.Message,
+                    Status = StatusCodes.Status400BadRequest
+                });
+        }
+    }
+
+    [AllowAnonymous]
     [HttpPost("login")]
+    [ProducesResponseType(typeof(LoginResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> Login(
         [FromBody] LoginCommand command,
         CancellationToken cancellationToken)
@@ -137,11 +215,23 @@ public sealed class AuthController : ControllerBase
 
         try
         {
-            var result = await _loginHandler.HandleAsync(
-                command,
-                cancellationToken);
+            var result =
+                await _loginHandler.HandleAsync(
+                    command,
+                    cancellationToken);
 
             return Ok(result);
+        }
+        catch (EmailVerificationRequiredException ex)
+        {
+            return StatusCode(
+                StatusCodes.Status403Forbidden,
+                new ProblemDetails
+                {
+                    Title = "Email verification required.",
+                    Detail = ex.Message,
+                    Status = StatusCodes.Status403Forbidden
+                });
         }
         catch (UnauthorizedAccessException)
         {
@@ -154,6 +244,7 @@ public sealed class AuthController : ControllerBase
                 });
         }
     }
+    [AllowAnonymous]
     [HttpPost("refresh")]
     public async Task<IActionResult> Refresh(
         [FromBody] RefreshCommand command,
@@ -196,6 +287,7 @@ public sealed class AuthController : ControllerBase
                 });
         }
     }
+
     [HttpPost("logout")]
     public async Task<IActionResult> Logout(
         [FromBody] LogoutCommand command,
