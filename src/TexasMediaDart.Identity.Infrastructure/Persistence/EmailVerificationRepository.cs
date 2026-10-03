@@ -51,14 +51,14 @@ public sealed class EmailVerificationRepository
         catch (SqlException ex) when (ex.Number == 50021)
         {
             throw new EmailVerificationException(
-                EmailVerificationFailureReason.InvalidatedToken,
-                "The email verification link is no longer valid.");
+                EmailVerificationFailureReason.AlreadyUsed,
+                "The email verification link has already been used.");
         }
         catch (SqlException ex) when (ex.Number == 50022)
         {
             throw new EmailVerificationException(
-                EmailVerificationFailureReason.AlreadyUsed,
-                "The email verification link has already been used.");
+                EmailVerificationFailureReason.InvalidatedToken,
+                "The email verification link is no longer valid.");
         }
         catch (SqlException ex) when (ex.Number == 50023)
         {
