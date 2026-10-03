@@ -147,10 +147,18 @@ BEGIN
             [UserId] UNIQUEIDENTIFIER NOT NULL
         );
 
+        /*
+            The invitation token was delivered to the invited
+            email address. Successfully accepting the invitation
+            therefore verifies ownership of that email address.
+
+            Invited users are created with IsEmailVerified = 1.
+        */
         INSERT INTO [dbo].[Users]
         (
             [Email],
-            [PasswordHash]
+            [PasswordHash],
+            [IsEmailVerified]
         )
         OUTPUT
             INSERTED.[UserId]
@@ -158,7 +166,8 @@ BEGIN
         VALUES
         (
             @Email,
-            @PasswordHash
+            @PasswordHash,
+            1
         );
 
         SELECT

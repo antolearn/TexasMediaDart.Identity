@@ -29,23 +29,35 @@ public sealed class LoginCommandHandler
         LoginCommand command,
         CancellationToken cancellationToken = default)
     {
+        //------------------------------------------------------------
+        // Find user
+        //------------------------------------------------------------
         var user =
             await _userRepository.GetByEmailAsync(
                 command.Email,
                 cancellationToken);
 
+        //------------------------------------------------------------
+        // Do not reveal whether the account exists
+        //------------------------------------------------------------
         if (user is null)
         {
             throw new UnauthorizedAccessException(
                 "Invalid email or password.");
         }
 
+        //------------------------------------------------------------
+        // Account must be active
+        //------------------------------------------------------------
         if (!user.IsActive || user.IsDeleted)
         {
             throw new UnauthorizedAccessException(
                 "Invalid email or password.");
         }
 
+        //------------------------------------------------------------
+        // Validate password before revealing verification status
+        //------------------------------------------------------------
         var isPasswordValid =
             _passwordHasher.Verify(
                 command.Password,
@@ -57,20 +69,41 @@ public sealed class LoginCommandHandler
                 "Invalid email or password.");
         }
 
+        //------------------------------------------------------------
+        // Email must be verified before authentication tokens
+        // can be issued.
+        //------------------------------------------------------------
+        if (!user.IsEmailVerified)
+        {
+            throw new EmailVerificationRequiredException();
+        }
+
+        //------------------------------------------------------------
+        // Generate access token
+        //------------------------------------------------------------
         var accessToken =
             _tokenService.GenerateToken(
                 user.UserId,
                 user.Email);
 
+        //------------------------------------------------------------
+        // Generate refresh token
+        //------------------------------------------------------------
         var refreshToken =
             _refreshTokenService.GenerateToken();
 
+        //------------------------------------------------------------
+        // Persist refresh token
+        //------------------------------------------------------------
         await _refreshTokenRepository.CreateAsync(
             user.UserId,
             refreshToken.TokenHash,
             refreshToken.ExpiresAtUtc,
             cancellationToken);
 
+        //------------------------------------------------------------
+        // Return authentication result
+        //------------------------------------------------------------
         return new LoginResult(
             user.UserId,
             user.Email,

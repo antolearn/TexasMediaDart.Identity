@@ -16,6 +16,8 @@ public interface IUserRepository
     Task<User> CreateAsync(
         string email,
         string passwordHash,
+        string verificationTokenHash,
+        DateTime verificationExpiresUtc,
         CancellationToken cancellationToken = default);
 
     Task<User?> GetByIdAsync(

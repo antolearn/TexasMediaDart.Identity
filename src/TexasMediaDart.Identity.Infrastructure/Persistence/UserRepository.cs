@@ -61,23 +61,26 @@ public sealed class UserRepository : IUserRepository
     public async Task<User> CreateAsync(
         string email,
         string passwordHash,
+        string verificationTokenHash,
+        DateTime verificationExpiresUtc,
         CancellationToken cancellationToken = default)
     {
-        await using var connection = new SqlConnection(_connectionString);
+        await using var connection =
+            new SqlConnection(_connectionString);
 
         var command = new CommandDefinition(
-            commandText: "dbo.sp_Users_Create",
+            commandText: "dbo.sp_Users_CreateWithTermsAcceptance",
             parameters: new
             {
                 Email = email,
-                PasswordHash = passwordHash
+                PasswordHash = passwordHash,
+                VerificationTokenHash = verificationTokenHash,
+                VerificationExpiresUtc = verificationExpiresUtc
             },
             commandType: CommandType.StoredProcedure,
             cancellationToken: cancellationToken);
 
-        var user = await connection.QuerySingleAsync<User>(command);
-
-        return user;
+        return await connection.QuerySingleAsync<User>(command);
     }
     public async Task<IReadOnlyList<User>> GetByIdsAsync(
     IReadOnlyCollection<Guid> userIds,
