@@ -2,7 +2,8 @@ name: Identity API Deploy - DEV
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
 
   workflow_dispatch:
 
@@ -17,8 +18,13 @@ env:
   API_PROJECT: 'src/TexasMediaDart.Identity.Api/TexasMediaDart.Identity.Api.csproj'
   API_PUBLISH_PATH: '${{ github.workspace }}/publish'
   AZURE_WEBAPP_NAME: 'texasmediadart-identity-api-dev'
+  AZURE_RESOURCE_GROUP: 'TexasMediaDart-Dev'
 
 jobs:
+
+  # ============================================================
+  # Build
+  # ============================================================
 
   build:
     name: Build Identity API Release
@@ -28,13 +34,27 @@ jobs:
       build_version: ${{ steps.version.outputs.version }}
 
     steps:
+
+      # --------------------------------------------------------
+      # Checkout
+      # --------------------------------------------------------
+
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      # --------------------------------------------------------
+      # .NET
+      # --------------------------------------------------------
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      # --------------------------------------------------------
+      # Version
+      # Format: yyyy.MM.dd.####
+      # --------------------------------------------------------
 
       - name: Generate build version
         id: version
@@ -52,8 +72,16 @@ jobs:
           echo "### Identity API Release Version" >> "$GITHUB_STEP_SUMMARY"
           echo "**$VERSION**" >> "$GITHUB_STEP_SUMMARY"
 
+      # --------------------------------------------------------
+      # Restore
+      # --------------------------------------------------------
+
       - name: Restore solution
         run: dotnet restore ${{ env.SOLUTION_FILE }}
+
+      # --------------------------------------------------------
+      # Build
+      # --------------------------------------------------------
 
       - name: Build solution
         run: >
@@ -61,6 +89,10 @@ jobs:
           ${{ env.SOLUTION_FILE }}
           --configuration ${{ env.BUILD_CONFIGURATION }}
           --no-restore
+
+      # --------------------------------------------------------
+      # Publish
+      # --------------------------------------------------------
 
       - name: Publish Identity API
         run: >
@@ -71,6 +103,10 @@ jobs:
           --output ${{ env.API_PUBLISH_PATH }}
           /p:InformationalVersion=${{ env.BUILD_VERSION }}
           /p:IncludeSourceRevisionInInformationalVersion=false
+
+      # --------------------------------------------------------
+      # Package
+      # --------------------------------------------------------
 
       - name: Create versioned API package
         shell: bash
@@ -85,6 +121,10 @@ jobs:
           echo "Identity API package created:"
           echo "$PACKAGE"
 
+      # --------------------------------------------------------
+      # Upload artifact
+      # --------------------------------------------------------
+
       - name: Upload Identity API artifact
         uses: actions/upload-artifact@v4
         with:
@@ -92,6 +132,10 @@ jobs:
           path: artifacts/TexasMediaDart.Identity.Api-${{ env.BUILD_VERSION }}.zip
           if-no-files-found: error
           retention-days: 30
+
+  # ============================================================
+  # Deploy DEV
+  # ============================================================
 
   deploy-api-dev:
     name: Deploy Identity API to DEV
@@ -102,10 +146,19 @@ jobs:
       name: dev
 
     steps:
+
+      # --------------------------------------------------------
+      # Version
+      # --------------------------------------------------------
+
       - name: Display version
         run: |
           echo "Deploying Identity API Version:"
           echo "${{ needs.build.outputs.build_version }}"
+
+      # --------------------------------------------------------
+      # Download artifact
+      # --------------------------------------------------------
 
       - name: Download Identity API artifact
         uses: actions/download-artifact@v4
@@ -113,19 +166,27 @@ jobs:
           name: TexasMediaDart.Identity.Api-${{ needs.build.outputs.build_version }}
           path: artifacts
 
+      # --------------------------------------------------------
+      # Verify package
+      # --------------------------------------------------------
+
       - name: Verify API package
         shell: bash
         run: |
           PACKAGE="artifacts/TexasMediaDart.Identity.Api-${{ needs.build.outputs.build_version }}.zip"
 
           if [ ! -f "$PACKAGE" ]; then
-            echo "Identity API package was not found:"
+            echo "ERROR: Identity API package was not found:"
             echo "$PACKAGE"
             exit 1
           fi
 
           echo "Identity API package:"
           echo "$PACKAGE"
+
+      # --------------------------------------------------------
+      # Azure OIDC Login
+      # --------------------------------------------------------
 
       - name: Login to Azure using OIDC
         uses: azure/login@v3
@@ -134,48 +195,187 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      # --------------------------------------------------------
+      # Validate GitHub DEV configuration
+      # --------------------------------------------------------
+
       - name: Validate DEV configuration
         shell: bash
         env:
           IDENTITY_SERVICE_API_KEY: ${{ secrets.IDENTITY_SERVICE_API_KEY }}
+          NOTIFICATION_SERVICE_API_KEY: ${{ secrets.NOTIFICATION_SERVICE_API_KEY }}
+          NOTIFICATION_SERVICE_BASE_URL: ${{ vars.NOTIFICATION_SERVICE_BASE_URL }}
+          FRONTEND_BASE_URL: ${{ vars.FRONTEND_BASE_URL }}
         run: |
           if [ -z "$IDENTITY_SERVICE_API_KEY" ]; then
-            echo "ERROR: GitHub secret IDENTITY_SERVICE_API_KEY is missing or empty."
+            echo "ERROR: IDENTITY_SERVICE_API_KEY is missing or empty."
             exit 1
           fi
 
-          echo "IDENTITY_SERVICE_API_KEY is available to the DEV deployment."
+          if [ -z "$NOTIFICATION_SERVICE_API_KEY" ]; then
+            echo "ERROR: NOTIFICATION_SERVICE_API_KEY is missing or empty."
+            exit 1
+          fi
+
+          if [ -z "$NOTIFICATION_SERVICE_BASE_URL" ]; then
+            echo "ERROR: NOTIFICATION_SERVICE_BASE_URL is missing or empty."
+            exit 1
+          fi
+
+          if [ -z "$FRONTEND_BASE_URL" ]; then
+            echo "ERROR: FRONTEND_BASE_URL is missing or empty."
+            exit 1
+          fi
+
+          echo "Identity DEV configuration is available."
+
+      # --------------------------------------------------------
+      # Configure Azure App Service
+      # --------------------------------------------------------
 
       - name: Configure DEV application settings
         shell: bash
         env:
           IDENTITY_SERVICE_API_KEY: ${{ secrets.IDENTITY_SERVICE_API_KEY }}
+          NOTIFICATION_SERVICE_API_KEY: ${{ secrets.NOTIFICATION_SERVICE_API_KEY }}
+          NOTIFICATION_SERVICE_BASE_URL: ${{ vars.NOTIFICATION_SERVICE_BASE_URL }}
+          FRONTEND_BASE_URL: ${{ vars.FRONTEND_BASE_URL }}
         run: |
           az webapp config appsettings set \
             --name "${{ env.AZURE_WEBAPP_NAME }}" \
-            --resource-group "TexasMediaDart-Dev" \
+            --resource-group "${{ env.AZURE_RESOURCE_GROUP }}" \
             --settings \
-              "Cors__AllowedOrigins__0=${{ vars.FRONTEND_BASE_URL }}" \
-              "ServiceAuthentication__ApiKey=$IDENTITY_SERVICE_API_KEY"
+              "Cors__AllowedOrigins__0=$FRONTEND_BASE_URL" \
+              "ServiceAuthentication__ApiKey=$IDENTITY_SERVICE_API_KEY" \
+              "NotificationService__BaseUrl=$NOTIFICATION_SERVICE_BASE_URL" \
+              "NotificationService__ApiKey=$NOTIFICATION_SERVICE_API_KEY" \
+              "Email__FrontendBaseUrl=$FRONTEND_BASE_URL"
 
-      - name: Verify DEV service authentication setting
+      # --------------------------------------------------------
+      # Verify Azure App Service settings
+      # --------------------------------------------------------
+
+      - name: Verify DEV application settings
         shell: bash
         run: |
-          SETTING_EXISTS=$(az webapp config appsettings list \
-            --name "${{ env.AZURE_WEBAPP_NAME }}" \
-            --resource-group "TexasMediaDart-Dev" \
-            --query "[?name=='ServiceAuthentication__ApiKey'].name | [0]" \
-            --output tsv)
+          REQUIRED_SETTINGS=(
+            "Cors__AllowedOrigins__0"
+            "ServiceAuthentication__ApiKey"
+            "NotificationService__BaseUrl"
+            "NotificationService__ApiKey"
+            "Email__FrontendBaseUrl"
+          )
 
-          if [ "$SETTING_EXISTS" != "ServiceAuthentication__ApiKey" ]; then
-            echo "ERROR: ServiceAuthentication__ApiKey was not created in Azure App Service."
-            exit 1
-          fi
+          for SETTING in "${REQUIRED_SETTINGS[@]}"; do
 
-          echo "ServiceAuthentication__ApiKey exists in Azure App Service."
+            SETTING_EXISTS=$(az webapp config appsettings list \
+              --name "${{ env.AZURE_WEBAPP_NAME }}" \
+              --resource-group "${{ env.AZURE_RESOURCE_GROUP }}" \
+              --query "[?name=='$SETTING'].name | [0]" \
+              --output tsv)
+
+            if [ "$SETTING_EXISTS" != "$SETTING" ]; then
+              echo "ERROR: $SETTING was not created in Azure App Service."
+              exit 1
+            fi
+
+            echo "$SETTING exists."
+          done
+
+      # --------------------------------------------------------
+      # Deploy
+      # --------------------------------------------------------
 
       - name: Deploy Identity API to Azure App Service
         uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ env.AZURE_WEBAPP_NAME }}
           package: artifacts/TexasMediaDart.Identity.Api-${{ needs.build.outputs.build_version }}.zip
+
+      # --------------------------------------------------------
+      # Get actual Azure hostname
+      #
+      # Secure unique default hostname may be enabled.
+      # Therefore, do not assume:
+      #
+      # <app-name>.azurewebsites.net
+      #
+      # Retrieve the actual defaultHostName from Azure.
+      # --------------------------------------------------------
+
+      - name: Get Identity API hostname
+        id: hostname
+        shell: bash
+        run: |
+          DEFAULT_HOSTNAME=$(az webapp show \
+            --name "${{ env.AZURE_WEBAPP_NAME }}" \
+            --resource-group "${{ env.AZURE_RESOURCE_GROUP }}" \
+            --query "defaultHostName" \
+            --output tsv)
+
+          if [ -z "$DEFAULT_HOSTNAME" ]; then
+            echo "ERROR: Unable to determine Identity API hostname."
+            exit 1
+          fi
+
+          echo "Identity API hostname:"
+          echo "$DEFAULT_HOSTNAME"
+
+          echo "hostname=$DEFAULT_HOSTNAME" >> "$GITHUB_OUTPUT"
+
+      # --------------------------------------------------------
+      # Health check
+      # --------------------------------------------------------
+
+      - name: Verify Identity API health
+        shell: bash
+        env:
+          DEFAULT_HOSTNAME: ${{ steps.hostname.outputs.hostname }}
+        run: |
+          HEALTH_URL="https://${DEFAULT_HOSTNAME}/health/api"
+
+          echo "Checking Identity API health:"
+          echo "$HEALTH_URL"
+
+          for attempt in {1..12}; do
+
+            echo "Health check attempt $attempt of 12..."
+
+            if RESPONSE=$(curl \
+              --fail \
+              --silent \
+              --show-error \
+              "$HEALTH_URL"); then
+
+              echo ""
+              echo "Identity API health response:"
+              echo "$RESPONSE"
+              echo ""
+              echo "Identity API is healthy."
+
+              echo "### Identity API DEV Deployment" >> "$GITHUB_STEP_SUMMARY"
+              echo "" >> "$GITHUB_STEP_SUMMARY"
+              echo "**Version:** ${{ needs.build.outputs.build_version }}" >> "$GITHUB_STEP_SUMMARY"
+              echo "" >> "$GITHUB_STEP_SUMMARY"
+              echo "**Host:** $DEFAULT_HOSTNAME" >> "$GITHUB_STEP_SUMMARY"
+              echo "" >> "$GITHUB_STEP_SUMMARY"
+              echo "**Health:** Healthy" >> "$GITHUB_STEP_SUMMARY"
+
+              exit 0
+            fi
+
+            echo ""
+            echo "Health check attempt $attempt failed."
+
+            if [ "$attempt" -lt 12 ]; then
+              echo "Waiting 10 seconds..."
+              sleep 10
+            fi
+
+          done
+
+          echo ""
+          echo "ERROR: Identity API health check failed after 12 attempts."
+          echo "URL: $HEALTH_URL"
+
+          exit 1
