@@ -30,6 +30,6 @@ public sealed class EmailVerificationLinkBuilder
         var encodedToken =
             Uri.EscapeDataString(token);
 
-        return $"{baseUrl}/#/verify-email?token={encodedToken}";
+        return $"{baseUrl}/verify-email?token={encodedToken}";
     }
 }
